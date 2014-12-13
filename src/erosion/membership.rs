@@ -105,12 +105,12 @@ impl Membership {
 
     fn start_gossip_listening(&mut self) {
         let meta = self.meta.clone();
-        let tx = self.message_sender.clone();
+        let message_sender = self.message_sender.clone();
         // Receiver message from network
         spawn(proc() {
             loop {
                 if let Some((msg, from)) = meta.recv_msg() {
-                    if let Some(ref tx) = *tx.lock() {
+                    if let Some(ref tx) = *message_sender.lock() {
                         tx.send((msg, from));
                     }
                 }
