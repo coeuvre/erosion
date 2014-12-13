@@ -1,8 +1,5 @@
 use std::collections::HashMap;
-use std::io::timer::{
-    sleep,
-    Timer,
-};
+use std::io::timer::Timer;
 use std::io::net::ip::SocketAddr;
 use std::rand::{
     task_rng,
@@ -31,6 +28,8 @@ use config::Config;
 pub struct Membership {
     meta: Arc<MembershipMeta>,
 
+    message_sender: Arc<Mutex<Option<Sender<(Message, SocketAddr)>>>>,
+
     /// Local incarnation number
     inc: u32,
 }
@@ -51,11 +50,13 @@ impl Membership {
                 members: RWLock::new(members),
                 gossip: Mutex::new(gossip.unwrap()),
 
-                ack_senders: Arc::new(Mutex::new(HashMap::new())),
+                ack_senders: Mutex::new(HashMap::new()),
 
                 seq: Mutex::new(0),
                 probe_index: Mutex::new(0),
             }),
+
+            message_sender: Arc::new(Mutex::new(None)),
 
             inc: 0,
         })
@@ -89,26 +90,44 @@ impl Membership {
         }
 
         let meta = self.meta.clone();
-        let duration = self.meta.config.probe_interval;
 
         spawn(proc() {
+            let mut timer = Timer::new().unwrap();
+            let timeout = timer.periodic(meta.config.probe_interval);
+
             loop {
-                sleep(duration);
                 meta.probe();
+
+                timeout.recv();
             }
         });
     }
 
     fn start_gossip_listening(&mut self) {
         let meta = self.meta.clone();
-
+        let tx = self.message_sender.clone();
+        // Receiver message from network
         spawn(proc() {
             loop {
                 if let Some((msg, from)) = meta.recv_msg() {
-                    meta.handle_message(msg, from);
+                    if let Some(ref tx) = *tx.lock() {
+                        tx.send((msg, from));
+                    }
                 }
             }
-        })
+        });
+
+        let meta = self.meta.clone();
+        let message_sender = self.message_sender.clone();
+        // Handle messages
+        spawn(proc() {
+            let (tx, rx) = channel();
+            *message_sender.lock() = Some(tx);
+            loop {
+                let (msg, from) = rx.recv();
+                meta.handle_message(msg, from);
+            }
+        });
     }
 }
 
@@ -119,7 +138,7 @@ struct MembershipMeta {
 
     gossip: Mutex<Gossip>,
 
-    ack_senders: Arc<Mutex<HashMap<u32, Sender<()>>>>,
+    ack_senders: Mutex<HashMap<u32, Sender<()>>>,
 
     /// local sequence number
     seq: Mutex<u32>,
