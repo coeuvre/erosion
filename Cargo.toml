@@ -1,0 +1,15 @@
+[package]
+
+name = "erosion"
+version = "0.0.1"
+authors = ["Coeuvre Wong <coeuvre@gmail.com>"]
+
+[lib]
+
+name = "erosion"
+path = "src/erosion/lib.rs"
+
+[[bin]]
+
+name = "erosion"
+path = "src/erosion.rs"
