@@ -26,6 +26,8 @@ use config::Config;
 
 
 pub struct Membership {
+    started: bool,
+
     meta: Arc<MembershipMeta>,
 
     message_sender: Arc<Mutex<Option<Sender<(Message, SocketAddr)>>>>,
@@ -45,6 +47,8 @@ impl Membership {
         let members = Vec::new();
 
         Ok(Membership {
+            started: false,
+
             meta: Arc::new(MembershipMeta {
                 config: config,
                 members: RWLock::new(members),
@@ -63,12 +67,22 @@ impl Membership {
     }
 
     pub fn start(&mut self) {
+        if self.started {
+            return;
+        }
+
         self.start_gossip_listening();
         self.start_probing();
+
+        self.started = true;
     }
 
     /// Join a existing cluster
     pub fn join(&mut self, name: String, addr: SocketAddr) {
+        if self.started {
+            return;
+        }
+
         let member = Member {
             name: name,
             addr: addr,
