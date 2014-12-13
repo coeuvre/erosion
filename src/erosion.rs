@@ -13,43 +13,39 @@ use serialize::base64::{MIME, ToBase64, FromBase64};
 use erosion::membership::Membership;
 use erosion::config;
 
-static EROSION_ADDR_1: SocketAddr = SocketAddr {
+static EROSION_ADDR: SocketAddr = SocketAddr {
     ip: Ipv4Addr(127, 0, 0, 1),
     port: 7201,
-};
-static EROSION_ADDR_2: SocketAddr = SocketAddr {
-    ip: Ipv4Addr(127, 0, 0, 1),
-    port: 7202,
 };
 
 fn bind() -> (int, Membership) {
     let mut config = config::local("node1".to_string());
-    config.bind_addr = EROSION_ADDR_1;
+    let mut index = 1;
+    config.bind_addr = EROSION_ADDR;
 
-    match Membership::bind(config.clone()) {
-        Ok(membership) => (1, membership),
-        Err(e) => {
-            println!("{}", e);
+    loop {
+        match Membership::bind(config.clone()) {
+            Ok(membership) => return (index, membership),
+            Err(e) => {
+                println!("{}", e);
 
-            config.name = "node2".to_string();
-            config.bind_addr = EROSION_ADDR_2;
-
-            if let Ok(membership) = Membership::bind(config) {
-                (2, membership)
-            } else {
-                panic!("couldn't bind socket.");
-            }
-        },
+                index += 1;
+                config.name = format!("node{}", index);
+                config.bind_addr.port += 1;
+            },
+        };
     }
 }
 
 fn ping(index: int, mut membership: Membership) {
     match index {
         1 => {
+            println!("First member, start!");
             membership.start();
         },
         _ => {
-            membership.join("node1".to_string(), EROSION_ADDR_1);
+            println!("Join to {}", EROSION_ADDR);
+            membership.join("node1".to_string(), EROSION_ADDR);
         },
     }
 }
