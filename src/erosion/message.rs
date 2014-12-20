@@ -7,7 +7,7 @@ use std::io::{
 use std::io::net::ip::SocketAddr;
 
 #[repr(u8)]
-#[deriving(FromPrimitive)]
+#[deriving(Copy, FromPrimitive)]
 pub enum MessageType {
     Ping = 0,
     IndirectPing,

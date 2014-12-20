@@ -10,6 +10,7 @@ use std::sync::{
     RWLock,
     Mutex,
 };
+use std::thread::Thread;
 use std::time::Duration;
 
 use member::{
@@ -105,7 +106,7 @@ impl Membership {
 
         let meta = self.meta.clone();
 
-        spawn(proc() {
+        Thread::spawn(move || {
             let mut timer = Timer::new().unwrap();
             let timeout = timer.periodic(meta.config.probe_interval);
 
@@ -114,14 +115,16 @@ impl Membership {
 
                 timeout.recv();
             }
-        });
+
+            ()
+        }).detach();
     }
 
     fn start_gossip_listening(&mut self) {
         let meta = self.meta.clone();
         let message_sender = self.message_sender.clone();
         // Receiver message from network
-        spawn(proc() {
+        Thread::spawn(move || {
             loop {
                 if let Some((msg, from)) = meta.recv_msg() {
                     if let Some(ref tx) = *message_sender.lock() {
@@ -129,19 +132,23 @@ impl Membership {
                     }
                 }
             }
-        });
+
+            ()
+        }).detach();
 
         let meta = self.meta.clone();
         let message_sender = self.message_sender.clone();
         // Handle messages
-        spawn(proc() {
+        Thread::spawn(move || {
             let (tx, rx) = channel();
             *message_sender.lock() = Some(tx);
             loop {
                 let (msg, from) = rx.recv();
                 meta.handle_message(msg, from);
             }
-        });
+
+            ()
+        }).detach();
     }
 }
 

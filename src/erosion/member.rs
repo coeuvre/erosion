@@ -10,7 +10,7 @@ pub struct Member {
     pub inc: u32,
 }
 
-#[deriving(PartialEq, Clone, Show)]
+#[deriving(Copy, PartialEq, Clone, Show)]
 pub enum MemberState {
     Alive,
     Suspect,

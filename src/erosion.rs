@@ -7,6 +7,8 @@ use std::io::net::ip::{
     Ipv4Addr,
     SocketAddr,
 };
+use std::io::timer::sleep;
+use std::time::duration::Duration;
 
 use serialize::base64::{MIME, ToBase64, FromBase64};
 
@@ -60,4 +62,8 @@ fn main() {
 
     let (index, membership) = bind();
     ping(index, membership);
+
+    loop {
+        sleep(Duration::seconds(1));
+    }
 }
