@@ -18,7 +18,6 @@ use member::{
     MemberState,
 };
 
-use gossip;
 use gossip::Gossip;
 
 use message::Message;
@@ -28,6 +27,8 @@ use config::Config;
 
 pub struct Membership {
     started: bool,
+
+    gossip: Gossip,
 
     meta: Arc<MembershipMeta>,
 
@@ -50,11 +51,11 @@ impl Membership {
         Ok(Membership {
             started: false,
 
+            gossip: gossip.unwrap(),
+
             meta: Arc::new(MembershipMeta {
                 config: config,
                 members: RWLock::new(members),
-                gossip: Mutex::new(gossip.unwrap()),
-
                 ack_senders: Mutex::new(HashMap::new()),
 
                 seq: Mutex::new(0),
@@ -105,13 +106,13 @@ impl Membership {
         }
 
         let meta = self.meta.clone();
-
+        let mut gossip = self.gossip.clone();
         Thread::spawn(move || {
             let mut timer = Timer::new().unwrap();
             let timeout = timer.periodic(meta.config.probe_interval);
 
             loop {
-                meta.probe();
+                meta.probe(&mut gossip);
 
                 timeout.recv();
             }
@@ -122,29 +123,30 @@ impl Membership {
 
     fn start_gossip_listening(&mut self) {
         let meta = self.meta.clone();
-        let message_sender = self.message_sender.clone();
-        // Receiver message from network
+        let (message_tx, message_rx) = channel();
+        let mut gossip = self.gossip.clone();
+        // Handle messages
         Thread::spawn(move || {
+            let (tx, rx) = channel();
+            message_tx.send(tx);
+
             loop {
-                if let Some((msg, from)) = meta.recv_msg() {
-                    if let Some(ref tx) = *message_sender.lock() {
-                        tx.send((msg, from));
-                    }
-                }
+                let (msg, from) = rx.recv();
+                meta.handle_message(&mut gossip, msg, from);
             }
 
             ()
         }).detach();
 
-        let meta = self.meta.clone();
-        let message_sender = self.message_sender.clone();
-        // Handle messages
+        let tx = message_rx.recv();
+
+        let mut gossip = self.gossip.clone();
+        // Receiver message from network
         Thread::spawn(move || {
-            let (tx, rx) = channel();
-            *message_sender.lock() = Some(tx);
             loop {
-                let (msg, from) = rx.recv();
-                meta.handle_message(msg, from);
+                if let Ok((msg, from)) = gossip.recv_from() {
+                    tx.send((msg, from));
+                }
             }
 
             ()
@@ -157,8 +159,6 @@ struct MembershipMeta {
 
     members: RWLock<Vec<Member>>,
 
-    gossip: Mutex<Gossip>,
-
     ack_senders: Mutex<HashMap<u32, Sender<()>>>,
 
     /// local sequence number
@@ -168,32 +168,7 @@ struct MembershipMeta {
 }
 
 impl MembershipMeta {
-    fn recv_msg(&self) -> Option<(Message, SocketAddr)> {
-        let mut gossip = self.gossip.lock();
-
-        gossip.udp.set_read_timeout(Some(1));
-
-        let mut buf = [0u8, ..gossip::UDP_MAX_SIZE];
-        let result = gossip.udp.recv_from(&mut buf);
-        if let Err(_) = result {
-            return None;
-        }
-
-        let (count, from) = result.unwrap();
-        let mut buf = buf[..count];
-        match Message::read(&mut buf) {
-            Ok(msg) => {
-                println!("Received message from {} => {}", from, msg);
-                Some((msg, from))
-            },
-            Err(e) => {
-                println!("Failed to decode message from {} => {}", from, e);
-                None
-            },
-        }
-    }
-
-    fn handle_message(&self, msg: Message, from: SocketAddr) {
+    fn handle_message(&self, gossip: &mut Gossip, msg: Message, from: SocketAddr) {
         match msg {
             Message::Ping {
                 seq,
@@ -203,7 +178,7 @@ impl MembershipMeta {
                     println!("Got ping for unexpected member `{}`", name);
                     return;
                 }
-                self.gossip.lock().ack(seq, from);
+                gossip.ack(seq, from);
             },
 
             Message::Ack {
@@ -219,7 +194,7 @@ impl MembershipMeta {
     }
 
     /// Used to perform a single round of failure detection and gossip
-    fn probe(&self) {
+    fn probe(&self, gossip: &mut Gossip) {
         let probe_index = { *self.probe_index.lock() };
         let members_len = { self.members.read().len() };
 
@@ -244,14 +219,14 @@ impl MembershipMeta {
         }
 
         if let Some(member) = member_to_be_probed {
-            self.probe_member(member);
+            self.probe_member(gossip, member);
         }
     }
 
-    fn probe_member(&self, member: Member) {
+    fn probe_member(&self, gossip: &mut Gossip, member: Member) {
         println!("Start probing {}", member);
         let seq = self.next_seq();
-        self.gossip.lock().ping(seq, member.name, member.addr);
+        gossip.ping(seq, member.name, member.addr);
         if let Some(_) = self.wait_ack(seq, self.config.probe_timeout) {
             println!("Ack {} confirmed.", seq);
             return;

@@ -13,3 +13,6 @@ path = "src/erosion/lib.rs"
 
 name = "erosion"
 path = "src/erosion.rs"
+
+[dependencies]
+log = "0.1.4"

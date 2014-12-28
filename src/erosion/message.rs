@@ -73,7 +73,7 @@ impl Message {
             _ => {
                 Err(IoError {
                     kind: IoErrorKind::IoUnavailable,
-                    desc: "Message is not supported",
+                    desc: "Message not supported",
                     detail: None,
                 })
             }
@@ -89,7 +89,7 @@ impl Message {
         if message_type.is_none() {
             return Err(IoError {
                     kind: IoErrorKind::IoUnavailable,
-                    desc: "Message is not supported",
+                    desc: "Message not supported",
                     detail: None,
             });
         }

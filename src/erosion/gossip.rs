@@ -1,10 +1,12 @@
 use std::io::net::ip::SocketAddr;
 use std::io::net::udp::UdpSocket;
+use std::io::IoResult;
 
 use message::Message;
 
 pub const UDP_MAX_SIZE: uint = 548;
 
+#[deriving(Clone)]
 pub struct Gossip {
     pub udp: UdpSocket,
 }
@@ -19,6 +21,27 @@ impl Gossip {
         Ok(Gossip {
             udp: udp.unwrap(),
         })
+    }
+
+    pub fn recv_from(&mut self) -> IoResult<(Message, SocketAddr)> {
+        let mut buf = [0u8, ..UDP_MAX_SIZE];
+        let result = self.udp.recv_from(&mut buf);
+        if let Err(e) = result {
+            return Err(e);
+        }
+
+        let (count, from) = result.unwrap();
+        let mut buf = buf[..count];
+        match Message::read(&mut buf) {
+            Ok(msg) => {
+                println!("Received message from {} => {}", from, msg);
+                Ok((msg, from))
+            },
+            Err(e) => {
+                println!("Failed to decode message from {} => {}", from, e);
+                Err(e)
+            },
+        }
     }
 
     pub fn ping(&mut self, seq: u32, name: String, to: SocketAddr) {
