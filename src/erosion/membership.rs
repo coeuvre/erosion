@@ -175,7 +175,7 @@ impl MembershipMeta {
                 name,
             } => {
                 if name != self.config.name {
-                    println!("Got ping for unexpected member `{}`", name);
+                    error!("Got ping for unexpected member `{}`", name);
                     return;
                 }
                 gossip.ack(seq, from);
@@ -224,15 +224,15 @@ impl MembershipMeta {
     }
 
     fn probe_member(&self, gossip: &mut Gossip, member: Member) {
-        println!("Start probing {}", member);
+        info!("Start probing {}", member);
         let seq = self.next_seq();
         gossip.ping(seq, member.name, member.addr);
         if let Some(_) = self.wait_ack(seq, self.config.probe_timeout) {
-            println!("Ack {} confirmed.", seq);
+            info!("Ack {} confirmed.", seq);
             return;
         }
 
-        println!("Ack {} timeout.", seq);
+        info!("Ack {} timeout.", seq);
     }
 
     fn wait_ack(&self, seq: u32, duration: Duration) -> Option<()> {

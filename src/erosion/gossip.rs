@@ -34,11 +34,11 @@ impl Gossip {
         let mut buf = buf[..count];
         match Message::read(&mut buf) {
             Ok(msg) => {
-                println!("Received message from {} => {}", from, msg);
+                info!("Received message from {} => {}", from, msg);
                 Ok((msg, from))
             },
             Err(e) => {
-                println!("Failed to decode message from {} => {}", from, e);
+                error!("Failed to decode message from {} => {}", from, e);
                 Err(e)
             },
         }
@@ -51,7 +51,7 @@ impl Gossip {
         };
         let mut buf = Vec::new();
         if let Err(e) = msg.write(&mut buf) {
-            println!("Failed to encode message. Err: {}", e);
+            error!("Failed to encode message. Err: {}", e);
             return;
         }
         self.send_to(buf.as_slice(),  to);
@@ -63,7 +63,7 @@ impl Gossip {
         };
         let mut buf = Vec::new();
         if let Err(e) = msg.write(&mut buf) {
-            println!("Failed to encode message. Err: {}", e);
+            error!("Failed to encode message. Err: {}", e);
             return;
         }
         self.send_to(buf.as_slice(), to);
@@ -71,14 +71,14 @@ impl Gossip {
 
     fn send_to(&mut self, buf: &[u8], to: SocketAddr) {
         if buf.len() > UDP_MAX_SIZE {
-            println!("Failed to send message. Message is too long ({} bytes).",
+            error!("Failed to send message. Message is too long ({} bytes).",
                      buf.len());
             return;
         }
 
-        println!("Sending message to {} <= {}", to, buf);
+        info!("Sending message to {} <= {}", to, buf);
         if let Err(e) = self.udp.send_to(buf, to) {
-            println!("Failed to send packets to {}. Err: {}", to, e);
+            error!("Failed to send packets to {}. Err: {}", to, e);
         }
     }
 }

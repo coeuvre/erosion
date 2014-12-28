@@ -1,6 +1,5 @@
 #![feature(slicing_syntax)]
 
-extern crate serialize;
 extern crate erosion;
 
 use std::io::net::ip::{
@@ -9,8 +8,6 @@ use std::io::net::ip::{
 };
 use std::io::timer::sleep;
 use std::time::duration::Duration;
-
-use serialize::base64::{MIME, ToBase64, FromBase64};
 
 use erosion::membership::Membership;
 use erosion::config;
@@ -53,13 +50,6 @@ fn ping(index: int, mut membership: Membership) {
 }
 
 fn main() {
-    let msg = "hello,world";
-    let encrypted = msg.as_bytes().to_base64(MIME);
-    let plain = String::from_utf8(encrypted.from_base64().unwrap()).unwrap();
-
-    println!("{}", encrypted);
-    println!("{}", plain);
-
     let (index, membership) = bind();
     ping(index, membership);
 
